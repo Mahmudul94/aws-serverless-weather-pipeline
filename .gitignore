@@ -20,3 +20,14 @@ data/
 
 # VS Code settings
 .vscode/
+
+# AWS credentials and local secrets
+credential/
+credentials/
+.aws/
+.env
+.env.*
+
+# Local weather datasets
+weather_data.csv
+weather_data.json
