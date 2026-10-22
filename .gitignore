@@ -1,0 +1,22 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environment
+.venv/
+venv/
+
+# AWS credentials
+.aws/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Local data
+data/
+*.parquet
+
+# VS Code settings
+.vscode/
