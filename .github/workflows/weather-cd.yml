@@ -1,0 +1,100 @@
+
+name: Weather Pipeline CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "weather_data_extract.py"
+      - "transform_weather_data.py"
+      - "lambda_function.py"
+      - "requirements.txt"
+      - ".github/workflows/weather-cd.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-2
+  LAMBDA_FUNCTION: nyc-weather-pipeline
+  DEPLOY_BUCKET: nyc-weather-pipeline-unique124
+
+jobs:
+  deploy:
+    name: Deploy Weather Lambda
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check Python syntax
+        run: |
+          python -m py_compile weather_data_extract.py
+          python -m py_compile transform_weather_data.py
+          python -m py_compile lambda_function.py
+
+      - name: Install dependencies
+        run: |
+          mkdir -p build/package
+          pip install --no-cache-dir --no-compile \
+            -r requirements.txt \
+            -t build/package
+
+      - name: Package Lambda code
+        run: |
+          cp weather_data_extract.py build/package/
+          cp transform_weather_data.py build/package/
+          cp lambda_function.py build/package/
+
+          cd build/package
+          zip -q -r ../weather-lambda.zip .
+
+      - name: Check deployment size
+        run: |
+          SIZE=$(du -sb build/package | cut -f1)
+          echo "Uncompressed package: $SIZE bytes"
+
+          if [ "$SIZE" -gt 262144000 ]; then
+            echo "Package exceeds Lambda 250 MiB limit."
+            echo "Use a container image deployment instead."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::312816041167:role/github-weather-deploy-role
+          aws-region: us-east-2
+
+      - name: Upload deployment package to S3
+        run: |
+          aws s3 cp build/weather-lambda.zip \
+            s3://$DEPLOY_BUCKET/deploy-artifacts/weather-lambda.zip
+
+      - name: Deploy to Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name "$LAMBDA_FUNCTION" \
+            --s3-bucket "$DEPLOY_BUCKET" \
+            --s3-key deploy-artifacts/weather-lambda.zip \
+            --region "$AWS_REGION"
+
+          aws lambda wait function-updated \
+            --function-name "$LAMBDA_FUNCTION" \
+            --region "$AWS_REGION"
+
+      - name: Confirm deployment
+        run: |
+          aws lambda get-function-configuration \
+            --function-name "$LAMBDA_FUNCTION" \
+            --query '{Name:FunctionName,Status:LastUpdateStatus}' \
+            --output table
+

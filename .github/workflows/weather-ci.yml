@@ -1,32 +1,43 @@
 
 name: Weather Pipeline CI
 
+# Trigger workflow when code is pushed to main
 on:
   push:
     branches: [main]
+
+  # Allow manual execution from GitHub Actions
   workflow_dispatch:
 
+# GitHub token permissions
 permissions:
   contents: read
 
 jobs:
   test:
+    name: Python Syntax Check
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Download repository code
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Step 2: Configure Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
+      # Step 3: Check all Python scripts
       - name: Check Python syntax
         run: |
           python -m py_compile weather_data_extract.py
           python -m py_compile transform_weather_data.py
+          python -m py_compile lambda_function.py
 
+      # Step 4: Print success message
       - name: Confirm CI completed
-        run: echo "Weather pipeline CI passed!"
+        run: echo "NYC Weather Pipeline CI passed!"
+
 
