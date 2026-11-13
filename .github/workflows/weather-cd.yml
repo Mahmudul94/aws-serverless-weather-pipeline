@@ -41,12 +41,39 @@ jobs:
           python -m py_compile transform_weather_data.py
           python -m py_compile lambda_function.py
 
-      - name: Install dependencies
+      - name: Install dependencies for Lambda ARM64
         run: |
           mkdir -p build/package
-          pip install --no-cache-dir --no-compile \
+
+          python -m pip install --no-cache-dir --no-compile \
+            --platform manylinux2014_aarch64 \
+            --implementation cp \
+            --python-version 3.12 \
+            --only-binary=:all: \
             -r requirements.txt \
             -t build/package
+
+      - name: Remove dependency test files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import shutil
+
+          package = Path("build/package")
+
+          for name in (
+              "pandas/tests",
+              "numpy/tests",
+              "pyarrow/tests",
+          ):
+              directory = package / name
+              if directory.is_dir():
+                  shutil.rmtree(directory)
+                  print(f"Removed {directory}")
+          PY
+
+          du -sh build/package
+          du -sh build/package/* | sort -h | tail -15
 
       - name: Package Lambda code
         run: |
